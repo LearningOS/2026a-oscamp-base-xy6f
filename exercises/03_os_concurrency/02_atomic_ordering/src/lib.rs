@@ -13,7 +13,7 @@
 //! When thread A writes with Release, and thread B reads the same location with Acquire,
 //! thread B will see all writes that thread A performed before the Release.
 
-use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+use std::{hint::spin_loop, sync::atomic::{AtomicBool, AtomicU32, Ordering}};
 
 /// Use Release-Acquire semantics to safely pass data between two threads.
 ///
@@ -39,8 +39,9 @@ impl FlagChannel {
     /// - What Ordering should be used for writing ready? (ensuring data writes are visible to consumer)
     pub fn produce(&self, value: u32) {
         // TODO: Store data (choose appropriate Ordering)
+        self.data.store(value, Ordering::Relaxed);
         // TODO: Set ready = true (choose appropriate Ordering so data writes complete before this)
-        todo!()
+        self.ready.store(true, Ordering::Release);
     }
 
     /// Consumer: spin-wait for ready flag, then read data.
@@ -50,11 +51,14 @@ impl FlagChannel {
     /// - What Ordering should be used for reading data?
     pub fn consume(&self) -> u32 {
         // TODO: Spin-wait for ready to become true (choose appropriate Ordering)
+        while !self.ready.load(Ordering::Acquire){
+            std::hint::spin_loop();
+        }
         // TODO: Read data (choose appropriate Ordering)
-        todo!()
+        self.data.load(Ordering::Relaxed)
     }
 
-    /// Reset channel state
+    /// Reset channel state     
     pub fn reset(&self) {
         self.ready.store(false, Ordering::Relaxed);
         self.data.store(0, Ordering::Relaxed);
@@ -83,13 +87,33 @@ impl OnceCell {
     pub fn init(&self, val: u32) -> bool {
         // TODO: Use compare_exchange to ensure initialization only once
         // Store value on success
-        todo!()
+        // compare_exchange:只有当 initialized == false 时,才把它改成 true 并把 val 写入。
+        // 成功 → 自己是唯一初始化者,返回 true。
+        // 失败 → 别人已经初始化了,返回 false(不修改 value)。
+        match self.initialized.compare_exchange(
+            false,                                  // expected
+            true,                                   // new
+            Ordering::AcqRel,                       // success
+            Ordering::Acquire,                      // failure
+        ) {
+            Ok(_) => {
+                // 成功路径:写入值。
+                // Release 保证:init 内部对 value 的写入,会被 get() 端的 Acquire 看到。
+                self.value.store(val, Ordering::Release);
+                true
+            }
+            Err(_) => false,
+        } 
     }
 
     /// Get value. Returns Some if initialized, otherwise None.
     pub fn get(&self) -> Option<u32> {
         // TODO: Check initialized flag, then read value
-        todo!()
+        if self.initialized.load(Ordering::Acquire){
+            Some(self.value.load(Ordering::Relaxed))
+        }else{
+            None
+        }
     }
 }
 

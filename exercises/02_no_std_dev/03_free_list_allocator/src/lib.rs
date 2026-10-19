@@ -110,6 +110,21 @@ unsafe impl GlobalAlloc for FreeListAllocator {
 
         // TODO: Step 1 — traverse free_list, find a suitable block (first-fit)
         //
+        let mut prev_ptr: *mut FreeBlock = null_mut();
+        let mut curr = self.free_list_head();
+        while !curr.is_null() {
+            if (*curr).size >= size && (curr as usize % align == 0) {
+                // 找到了:把它从链表里摘下来
+                if prev_ptr.is_null() {
+                    self.set_free_list_head((*curr).next);   // 摘的是头节点
+                } else {
+                    (*prev_ptr).next = (*curr).next;          // 摘的是中间/尾节点
+                }
+                return curr as *mut u8;
+            }
+            prev_ptr = curr;
+            curr = (*curr).next;
+        }    
         // Hints:
         // - Use prev_ptr and curr to traverse the list
         // - Check if curr address satisfies align, and (*curr).size >= size
@@ -119,7 +134,14 @@ unsafe impl GlobalAlloc for FreeListAllocator {
         // TODO: Step 2 — no suitable block in free_list, allocate from bump region
         //
         // Same logic as 02_bump_allocator's alloc
-        todo!()
+        let current = self.bump_next.load(core::sync::atomic::Ordering::Relaxed);
+        let aligned = (current + align - 1) & !(align - 1);   // 向上对齐
+        let new_next = aligned + size;
+        if new_next > self.heap_end {
+            return null_mut();                                 // 堆不够用 → OOM
+        }
+        self.bump_next.store(new_next, core::sync::atomic::Ordering::Relaxed);
+        aligned as *mut u8
     }
 
     unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
@@ -131,8 +153,16 @@ unsafe impl GlobalAlloc for FreeListAllocator {
         // 1. Cast ptr to *mut FreeBlock
         // 2. Write FreeBlock { size, next: current list head }
         // 3. Update free_list head to ptr
-        todo!()
-    }
+        
+        // 1. 把被释放的内存头 16 字节改写成 FreeBlock 头
+        let block = ptr as *mut FreeBlock;
+        // 2/3. next 指向当前头,然后把它设为新头(头插法)
+        block.write(FreeBlock {
+            size,
+            next: self.free_list_head(),
+        });
+        self.set_free_list_head(block);
+        }
 }
 
 // ============================================================
