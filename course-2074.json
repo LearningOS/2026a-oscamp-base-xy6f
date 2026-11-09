@@ -2,7 +2,7 @@
   "schema": 1,
   "courseId": 2074,
   "repository": "LearningOS/2026a-oscamp-base-xy6f",
-  "commit": "a4350702c8b90cb320aab202cd670b84a5813de5",
+  "commit": "218f5e6c1edd100cd0418d8706315b05270b5e14",
   "score": 100,
   "totalScore": 100,
   "exercises": [
@@ -176,9 +176,9 @@
     }
   ],
   "student": "xy6f",
-  "runId": "39267899752",
+  "runId": "42582939333",
   "runAttempt": "1",
   "upload": {
-    "status": "accepted"
+    "status": "pending"
   }
 }
