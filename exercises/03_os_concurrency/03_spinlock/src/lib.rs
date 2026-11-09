@@ -43,7 +43,10 @@ impl<T> SpinLock<T> {
         // TODO
         loop {
             match self.locked.compare_exchange(
-                false, true, Ordering::AcqRel,Ordering::Relaxed
+                false,
+                 true, 
+                 Ordering::Acquire,
+                 Ordering::Relaxed
              ){
                 Ok(_) =>return unsafe {
                     &mut *self.data.get()
@@ -58,7 +61,7 @@ impl<T> SpinLock<T> {
     /// TODO: Set locked to false (using Release ordering)
     pub fn unlock(&self) {
         // TODO
-        self.locked.store(false, Ordering::Relaxed);
+        self.locked.store(false, Ordering::Release);
     }
 
     /// Try to acquire lock without spinning.
